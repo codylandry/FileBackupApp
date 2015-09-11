@@ -82,6 +82,9 @@ class PyroService():
             print 'Exception in Function: create_new_job;', e
             return False
 
+    # TODO: Add update_job()
+    # TODO: Add delete_job()
+
     def get_files_to_backup(self, job):
         files_to_backup = []
         current_state = self.get_dir_timestamps(job.from_location)
