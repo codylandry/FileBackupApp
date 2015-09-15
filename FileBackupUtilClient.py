@@ -7,10 +7,11 @@ import pickle
 from wx.lib.masked import TimeCtrl
 from wx.grid import Grid
 import time
+from collections import namedtuple
 
 
-def run_task(job):
-    pass
+Job = namedtuple("Job", ('job_id', 'job_desc', 'from_location', 'to_location', 'last_backup', 'tableindex'))
+
 
 class BackupConfig(wx.Frame):
     def __init__(self, parent, **kwargs):
@@ -72,13 +73,11 @@ class WindowClass(wx.Frame):
         self.Centre()
         self.SetTitle('File Backup App')
 
-        # TODO: Add basic gui elements to CRUD 'jobs' and view status of backups
-        # TODO: Add table to view the sqlite db contents
-
         # --------------Panel Setup-----------------------------
         panel = wx.Panel(self)
 
         self.table = wx.ListCtrl(panel, -1, pos=(10, 10), size=(611, 199), style=wx.LC_REPORT | wx.LC_HRULES)
+        self.tablevalues = None
         self.update_table()
 
         newbtn = wx.Button(panel, -1, "New", pos=(10, 218), size=(65, 24))
@@ -87,28 +86,42 @@ class WindowClass(wx.Frame):
 
         newbtn.Bind(wx.EVT_BUTTON, self.newbtn_handler)
 
+        deletebtn.Bind(wx.EVT_BUTTON, self.deletebtn_handler)
+
         self.Show()
 
     def update_table(self):
+
         columns = [
+            ("Job #", 50),
             ("Backup Type", 150),
             ("Source", 100),
             ("Destination", 100),
             ("Last Backup", 200)
         ]
-        self.tablevalues = self.pyro_service.get_jobs()
+
+        self.tablevalues = [Job(*row) for row in self.pyro_service.get_jobs()]
         self.table.ClearAll()
 
         if len(self.tablevalues):
             for i, col in enumerate(columns):
                 self.table.InsertColumn(i, col[0], width=col[1])
+
             for i, row in enumerate(self.tablevalues):
                 edited_row = []
-                for g, col in enumerate(row[1:]):
-                    if g in [1, 2]:
-                        edited_row.append(str(col)[col.rfind('/'):])
-                    else:
-                        edited_row.append(str(col))
+                for g, col in enumerate(row):
+
+                    if g == 0:
+                        edited_row.append(str(self.tablevalues[i].tableindex))
+                    elif g == 1:
+                        edited_row.append(str(self.tablevalues[i].job_desc))
+                    elif g == 2:
+                        edited_row.append(str(self.end_of_path(self.tablevalues[i].from_location)))
+                    elif g == 3:
+                        edited_row.append(str(self.end_of_path(self.tablevalues[i].to_location)))
+                    elif g == 4:
+                        edited_row.append(str(self.tablevalues[i].last_backup))
+                print(edited_row)
                 self.table.Append(edited_row)
 
     def show_dirdialog(self, message="Select Folder", defaultPath=""):
@@ -134,6 +147,12 @@ class WindowClass(wx.Frame):
             time.sleep(2)
             self.update_table()
 
+    def deletebtn_handler(self, event):
+        row = self.table.GetFirstSelected()
+        print(self.tablevalues[row].job_id)
+        self.pyro_service.delete_job(self.tablevalues[row].job_id)
+        time.sleep(1)
+        self.update_table()
 
     def newbtn_handler(self, event):
 
@@ -147,18 +166,13 @@ class WindowClass(wx.Frame):
 
         BackupConfig(self)
 
-        """
-        interval = 5
-        periodicity = 'seconds'
-
-        test_job = "schedule.Job(" + str(interval) + ")." + periodicity
-        test_job = pickle.dumps(eval(test_job))
-
-        #test_job = pickle.dumps(schedule.Job(20).seconds)
-
-        self.pyro_service.create_new_job(test_job, '/Users/codylandry/PycharmProjects/FileBackupApp/test/from_dir',
-                                         '/Users/codylandry/PycharmProjects/FileBackupApp/test/to_dir')
-        """
+    @staticmethod
+    def end_of_path(path):
+        last = len(path)
+        back = path.rfind('\\')
+        forward = path.rfind('/')
+        last = back if back > forward else forward
+        return path[last:]
 
 
 def main():

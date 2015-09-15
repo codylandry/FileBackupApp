@@ -14,6 +14,7 @@ import sys
 import Pyro4.core
 import Pyro4.naming
 import dirsync
+import time
 from collections import namedtuple
 
 
@@ -53,6 +54,8 @@ class PyroService():
                         'from_location TEXT NOT NULL,'
                         'to_location TEXT NOT NULL,'
                         'last_backup TEXT)')
+        time.sleep(.5)
+        self.dbconn.commit()
 
     def reload_tasks_from_db(self):
         # Gets all jobs
@@ -67,15 +70,15 @@ class PyroService():
         self.schedule.jobs = jobs
 
     def get_jobs(self):
-        Job = namedtuple("Job", ('job_id', 'job_desc', 'from_location', 'to_location', 'last_backup'))
+        Job = namedtuple("Job", ('job_id', 'job_desc', 'from_location', 'to_location', 'last_backup', 'tableindex'))
         self.connect_to_db()
         self.db.execute('SELECT job_id, job, from_location, to_location, last_backup FROM jobs')
         ret = []
-        for row in list(self.db.fetchall()):
+        for idx, row in enumerate(list(self.db.fetchall())):
             row = list(row)
             row[1] = self.job_desc(pickle.loads(row[1]))
+            row.append(idx)
             ret.append(Job(*row))
-        print 'get_jobs called'
         return ret
 
     @Pyro4.expose
@@ -87,6 +90,8 @@ class PyroService():
                         'WHERE job_id == {}'.format(job, from_location, to_location, job_id))
         self.dbconn.commit()
         self.reload_tasks_from_db()
+        time.sleep(2)
+        self.update_job()
 
     @Pyro4.oneway
     @Pyro4.expose
@@ -101,8 +106,11 @@ class PyroService():
         self.dbconn.commit()
         self.reload_tasks_from_db()
 
-
-    # TODO: Add delete_job()
+    def delete_job(self, job_id):
+        self.connect_to_db()
+        self.db.execute('DELETE FROM jobs WHERE job_id == {}'.format(job_id))
+        self.dbconn.commit()
+        self.reload_tasks_from_db()
 
     def run_task(self, from_location, to_location):
         self.connect_to_db()
