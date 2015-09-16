@@ -17,7 +17,7 @@ class BackupConfig(wx.Frame):
     def __init__(self, parent, **kwargs):
         super(BackupConfig, self).__init__(parent, **kwargs)
         self.parent = parent
-        self.Size = (640, 480)
+        self.Size = (400, 240)
         self.Centre()
         self.SetTitle('Select Backup Configuration')
 
@@ -29,23 +29,22 @@ class BackupConfig(wx.Frame):
         self.backup_at_radiobtn = wx.RadioButton(panel, -1, "Backup at:", pos=(10, 82))
         self.backup_every_radiobtn.SetValue(True)
 
-        self.multiplier = wx.SpinCtrl(panel, pos=(435, 42), size=(57, 24))
+        self.multiplier = wx.SpinCtrl(panel, pos=(150, 42), size=(57, 24))
         self.multiplier.SetRange(1, 100)
 
-        self.periodicity = wx.Choice(panel, -1, pos=(525, 40), size=(99, 24),
+        self.periodicity = wx.Choice(panel, -1, pos=(280, 40), size=(99, 24),
                                 choices=['seconds', 'minutes', 'hours', 'days', 'weeks'])
 
-        self.time_spin_btn = wx.SpinButton(panel, -1, style=wx.SP_VERTICAL, pos=(510, 79))
-        self.time_ = TimeCtrl(panel, -1, pos=(408, 80), spinButton=self.time_spin_btn)
+        self.time_spin_btn = wx.SpinButton(panel, -1, style=wx.SP_VERTICAL, pos=(253, 79))
+        self.time_ = TimeCtrl(panel, -1, pos=(150, 80), spinButton=self.time_spin_btn)
 
-        self.day_of_week = wx.Choice(panel, -1, pos=(525, 77), size=(99, 24),
+        self.day_of_week = wx.Choice(panel, -1, pos=(280, 77), size=(99, 24),
                                 choices=['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
 
-        submit = wx.Button(panel, -1, "Submit", pos=(10, 100))
+        submit = wx.Button(panel, -1, "Submit", pos=(280, 170))
 
         submit.Bind(wx.EVT_BUTTON, self.push_to_parent)
 
-        self.Show()
 
     def push_to_parent(self, event):
         if self.backup_every_radiobtn.GetValue() == True:
@@ -68,7 +67,6 @@ class WindowClass(wx.Frame):
 
         self.pyro_service = Pyro4.core.Proxy("PYRONAME:pyro_service")    # use name server object lookup uri shortcut
 
-
         self.Size = (640, 280)
         self.Centre()
         self.SetTitle('File Backup App')
@@ -81,11 +79,9 @@ class WindowClass(wx.Frame):
         self.update_table()
 
         newbtn = wx.Button(panel, -1, "New", pos=(10, 218), size=(65, 24))
-        editbtn = wx.Button(panel, -1, "Edit", pos=(85, 218), size=(65, 24))
-        deletebtn = wx.Button(panel, -1, "Delete", pos=(160, 218), size=(65, 24))
+        deletebtn = wx.Button(panel, -1, "Delete", pos=(85, 218), size=(65, 24))
 
         newbtn.Bind(wx.EVT_BUTTON, self.newbtn_handler)
-
         deletebtn.Bind(wx.EVT_BUTTON, self.deletebtn_handler)
 
         self.Show()
@@ -135,7 +131,6 @@ class WindowClass(wx.Frame):
         if kwargs['type_'] == 'EVERY':
             newjobcall = "schedule.Job(" + str(kwargs['multiplier']) + ")." + str(kwargs['periodicity'])
         elif kwargs['type_'] == 'AT':
-            print(kwargs['time_'])
             newjobcall = "schedule.Job().at('" + str(kwargs['time_']) + "')"
 
         if newjobcall:
@@ -147,12 +142,9 @@ class WindowClass(wx.Frame):
             time.sleep(2)
             self.update_table()
 
+
     def deletebtn_handler(self, event):
-        row = self.table.GetFirstSelected()
-        print(self.tablevalues[row].job_id)
-        self.pyro_service.delete_job(self.tablevalues[row].job_id)
-        time.sleep(1)
-        self.update_table()
+        self.delete_job()
 
     def newbtn_handler(self, event):
 
@@ -164,7 +156,8 @@ class WindowClass(wx.Frame):
         if not self.temp_target:
             return
 
-        BackupConfig(self)
+        config = BackupConfig(self)
+        config.Show()
 
     @staticmethod
     def end_of_path(path):
@@ -174,6 +167,11 @@ class WindowClass(wx.Frame):
         last = back if back > forward else forward
         return path[last:]
 
+    def delete_job(self):
+        row = self.table.GetFirstSelected()
+        self.pyro_service.delete_job(self.tablevalues[row].job_id)
+        time.sleep(1)
+        self.update_table()
 
 def main():
     """
