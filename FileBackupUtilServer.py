@@ -19,6 +19,9 @@ from collections import namedtuple
 
 
 class PyroService():
+    """
+    A backend for a file backup application
+    """
     def __init__(self):
         self.db = None
         self.dbconn = None
@@ -28,17 +31,20 @@ class PyroService():
     def job_last_run(self, job):
         def format_time(t):
             return t.strftime('%Y-%m-%d %H:%M:%S') if t else '[never]'
-
         return '(last run: %s, next run: %s)' % (
                     format_time(job.last_run), format_time(job.next_run))
 
     def job_desc(self, job):
+        # The schedule.Job.repr() call fails when no .do() function is defined
+        # Using this to print the object instead
         if job.at_time is not None:
             return 'Every %s %s at %s' % (job.interval, job.unit[:-1] if job.interval == 1 else job.unit, job.at_time)
         else:
             return 'Every %s %s' % (job.interval, job.unit[:-1] if job.interval == 1 else job.unit)
 
     def connect_to_db(self):
+        # Connects to the sqlite db
+        # opens a fresh connection on each call due to threading issues
         global dbconn, db
         try:
             self.db.close()
@@ -58,18 +64,21 @@ class PyroService():
         self.dbconn.commit()
 
     def reload_tasks_from_db(self):
-        # Gets all jobs
+        # Update the schedule's job list from the database
         self.connect_to_db()
         self.db.execute('SELECT * FROM jobs')
         jobs = []
         for row in list(self.db.fetchall()):
+            # jobs are stored in pickled form in the db
             job = pickle.loads(row[1])
             print self.job_desc(job)
             job.do(self.run_task, row[2], row[3])
             jobs.append(job)
         self.schedule.jobs = jobs
 
+    @Pyro4.expose
     def get_jobs(self):
+        # A function for the client to update its list of jobs and table
         Job = namedtuple("Job", ('job_id', 'job_desc', 'from_location', 'to_location', 'last_backup', 'tableindex'))
         self.connect_to_db()
         self.db.execute('SELECT job_id, job, from_location, to_location, last_backup FROM jobs')
@@ -83,6 +92,7 @@ class PyroService():
 
     @Pyro4.expose
     def update_job(self, job_id, job, from_location, to_location):
+        # Take arguments passed from the client and update a job
         self.connect_to_db()
         job_obj = pickle.loads(job)
         job_obj.do(self.run_task, from_location, to_location)
@@ -96,6 +106,7 @@ class PyroService():
     @Pyro4.oneway
     @Pyro4.expose
     def create_new_job(self, job, from_location, to_location):
+        # take arguments from the client and create a new job in the db and update the jobs in memory
         self.connect_to_db()
         job_obj = pickle.loads(job)
         job_obj.do(self.run_task, from_location, to_location)
@@ -107,12 +118,14 @@ class PyroService():
         self.reload_tasks_from_db()
 
     def delete_job(self, job_id):
+        # Delete job from db and from memory
         self.connect_to_db()
         self.db.execute('DELETE FROM jobs WHERE job_id == {}'.format(job_id))
         self.dbconn.commit()
         self.reload_tasks_from_db()
 
     def run_task(self, from_location, to_location):
+        # copy files from source to target and update the 'last update' field
         self.connect_to_db()
         timestamp = dt.datetime.now()
         self.db.execute('UPDATE jobs SET last_backup = "{}" '
@@ -187,7 +200,6 @@ while True:
         pyrodaemon.events(eventsForDaemon)
 
     pyro_service.schedule.run_pending()
-
 
 nameserverDaemon.close()
 broadcastServer.close()
